@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont
 
 from src.styles import get_stylesheet
+from src.backup import make_backup
 from src.widgets.dashboard import DashboardWidget
 from src.widgets.apartments import ApartamentosWidget
 from src.widgets.tenants import InquilinosWidget
@@ -144,6 +145,12 @@ class MainWindow(QMainWindow):
         "Dashboard", "Apartamentos", "Inquilinos", "Contratos",
         "Pagos", "Mantenimiento", "Gastos", "Informes",
     ]
+
+    def closeEvent(self, event):
+        ok, msg = make_backup(self.db.db_path)
+        if ok:
+            self.status_bar.showMessage(msg)
+        event.accept()
 
     def _nav_click(self, idx: int):
         for i, btn in enumerate(self.nav_buttons):
