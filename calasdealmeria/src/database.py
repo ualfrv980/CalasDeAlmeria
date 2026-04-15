@@ -108,6 +108,11 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (apartamento_id) REFERENCES apartamentos(id)
             );
+
+            CREATE TABLE IF NOT EXISTS configuracion (
+                clave TEXT PRIMARY KEY,
+                valor TEXT DEFAULT ''
+            );
         """)
         conn.commit()
         conn.close()
@@ -474,4 +479,22 @@ class Database:
     def delete_gasto(self, id_):
         conn = self._conn()
         conn.execute("DELETE FROM gastos WHERE id=?", (id_,))
+        conn.commit(); conn.close()
+
+    # ==================== CONFIGURACION ====================
+
+    def get_configuracion(self) -> dict:
+        conn = self._conn()
+        rows = conn.execute("SELECT clave, valor FROM configuracion").fetchall()
+        conn.close()
+        return {r['clave']: r['valor'] for r in rows}
+
+    def set_configuracion(self, data: dict):
+        conn = self._conn()
+        for clave, valor in data.items():
+            conn.execute(
+                "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
+                "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
+                (clave, valor or '')
+            )
         conn.commit(); conn.close()

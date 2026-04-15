@@ -2,11 +2,14 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog,
     QFormLayout, QSpinBox, QDoubleSpinBox, QComboBox,
-    QMessageBox, QDateEdit, QLineEdit, QFrame
+    QMessageBox, QDateEdit, QLineEdit, QFrame, QFileDialog
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QColor, QFont
 from datetime import date
+import os
+import subprocess
+import sys
 
 
 ESTADO_COLORS = {
@@ -126,7 +129,12 @@ class PagosWidget(QWidget):
         del_btn.setStyleSheet("background-color:#E53E3E; color:white; border:none;")
         del_btn.setFixedHeight(32); del_btn.clicked.connect(self._delete)
 
+        receipt_btn = QPushButton("🧾  Generar Recibo PDF")
+        receipt_btn.setStyleSheet("background-color:#6B46C1; color:white; border:none;")
+        receipt_btn.setFixedHeight(32); receipt_btn.clicked.connect(self._generate_receipt)
+
         actions.addWidget(mark_btn); actions.addWidget(edit_btn); actions.addWidget(del_btn)
+        actions.addWidget(receipt_btn)
         actions.addStretch()
         self.count_lbl = QLabel()
         self.count_lbl.setStyleSheet("color:#718096; font-size:12px;")
@@ -240,6 +248,74 @@ class PagosWidget(QWidget):
         ) == QMessageBox.Yes:
             self.db.delete_pago(id_)
             self._load()
+
+    def _generate_receipt(self):
+        id_ = self._selected_id()
+        if id_ is None:
+            QMessageBox.information(self, "Aviso", "Selecciona un pago para generar el recibo.")
+            return
+
+        # Get full payment data
+        pagos = self.db.get_pagos()
+        pago = next((p for p in pagos if p['id'] == id_), None)
+        if not pago:
+            return
+
+        contrato = self.db.get_contrato(pago['contrato_id'])
+        if not contrato:
+            QMessageBox.warning(self, "Error", "No se encontro el contrato asociado.")
+            return
+
+        inquilino = self.db.get_inquilino(contrato['inquilino_id'])
+        apartamento = self.db.get_apartamento(contrato['apartamento_id'])
+        if not inquilino or not apartamento:
+            QMessageBox.warning(self, "Error", "No se encontraron los datos del inquilino o apartamento.")
+            return
+
+        cfg = self.db.get_configuracion()
+
+        # Suggest file name
+        from src.invoice import MESES
+        mes_num = pago.get('mes', 1) or 1
+        mes_nombre = MESES[mes_num - 1] if 1 <= mes_num <= 12 else str(mes_num)
+        anyo = pago.get('anyo', date.today().year)
+        inq_apellido = (inquilino.get('apellidos', '') or inquilino.get('nombre', '')).replace(' ', '_')
+        default_name = f"Recibo_{mes_nombre}_{anyo}_{inq_apellido}.pdf"
+
+        docs_dir = os.path.join(os.path.expanduser('~'), 'Documents')
+        default_path = os.path.join(docs_dir, default_name)
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar recibo PDF", default_path, "PDF (*.pdf)"
+        )
+        if not path:
+            return
+
+        try:
+            from src.invoice import generate_receipt
+            generate_receipt(pago, contrato, inquilino, apartamento, cfg, path)
+        except ImportError as e:
+            QMessageBox.critical(
+                self, "Libreria no encontrada",
+                str(e) + "\n\nInstala reportlab con:\n  pip install reportlab"
+            )
+            return
+        except Exception as e:
+            QMessageBox.critical(self, "Error al generar PDF", str(e))
+            return
+
+        reply = QMessageBox.question(
+            self, "Recibo generado",
+            f"Recibo guardado en:\n{path}\n\n¿Abrir el archivo ahora?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+        )
+        if reply == QMessageBox.Yes:
+            if sys.platform == 'win32':
+                os.startfile(path)
+            elif sys.platform == 'darwin':
+                subprocess.run(['open', path])
+            else:
+                subprocess.run(['xdg-open', path])
 
     def refresh(self):
         self._load()

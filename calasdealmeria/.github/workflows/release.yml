@@ -1,0 +1,57 @@
+name: Build and Release EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 reportlab pyinstaller
+
+      - name: Build EXE with PyInstaller
+        run: |
+          python -m PyInstaller calasdealmeria.spec --clean
+
+      - name: Verify EXE exists
+        run: |
+          if (!(Test-Path "dist\calasdealmeria.exe")) {
+            Write-Error "EXE not found after build"
+            exit 1
+          }
+          $size = (Get-Item "dist\calasdealmeria.exe").Length / 1MB
+          Write-Host "EXE size: $([math]::Round($size, 1)) MB"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Calas de Almeria ${{ github.ref_name }}"
+          body: |
+            ## Calas de Almeria ${{ github.ref_name }}
+
+            ### Instalacion
+            1. Descarga `calasdealmeria.exe`
+            2. Ejecuta el archivo (no requiere instalar nada)
+            3. La base de datos se crea automaticamente en tu PC
+
+            ### Cambios
+            Ver historial de commits para detalles de esta version.
+          files: dist/calasdealmeria.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

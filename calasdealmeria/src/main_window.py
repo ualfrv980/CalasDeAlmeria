@@ -2,11 +2,10 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame, QStatusBar
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from src.styles import get_stylesheet
-from src.backup import make_backup
 from src.widgets.dashboard import DashboardWidget
 from src.widgets.apartments import ApartamentosWidget
 from src.widgets.tenants import InquilinosWidget
@@ -15,6 +14,7 @@ from src.widgets.payments import PagosWidget
 from src.widgets.maintenance import MantenimientoWidget
 from src.widgets.expenses import GastosWidget
 from src.widgets.reports import InformesWidget
+from src.widgets.settings import ConfiguracionWidget
 
 
 class SidebarButton(QPushButton):
@@ -53,7 +53,6 @@ class MainWindow(QMainWindow):
         sb_layout.setContentsMargins(0, 0, 0, 0)
         sb_layout.setSpacing(0)
 
-        # Logo
         header = QFrame()
         header.setObjectName("sidebarHeader")
         header.setFixedHeight(70)
@@ -93,7 +92,18 @@ class MainWindow(QMainWindow):
 
         sb_layout.addStretch()
 
-        ver_lbl = QLabel("  v1.0.0  |  Fran Ruiz")
+        # Separador + Configuración al fondo
+        sep_lbl = QLabel("  AJUSTES")
+        sep_lbl.setObjectName("sidebarSectionLabel")
+        sep_lbl.setFixedHeight(32)
+        sb_layout.addWidget(sep_lbl)
+
+        cfg_btn = SidebarButton("⚙", "Configuración")
+        cfg_btn.clicked.connect(lambda checked: self._nav_click(len(nav_items)))
+        sb_layout.addWidget(cfg_btn)
+        self.nav_buttons.append(cfg_btn)
+
+        ver_lbl = QLabel("  v1.1.0  |  Fran Ruiz")
         ver_lbl.setObjectName("sidebarVersion")
         ver_lbl.setFixedHeight(30)
         sb_layout.addWidget(ver_lbl)
@@ -118,7 +128,6 @@ class MainWindow(QMainWindow):
         tb_layout.addStretch()
         c_layout.addWidget(topbar)
 
-        # Pages
         self.stack = QStackedWidget()
         self.dashboard_w = DashboardWidget(self.db)
         self.apartamentos_w = ApartamentosWidget(self.db)
@@ -128,10 +137,11 @@ class MainWindow(QMainWindow):
         self.mantenimiento_w = MantenimientoWidget(self.db)
         self.gastos_w = GastosWidget(self.db)
         self.informes_w = InformesWidget(self.db)
+        self.configuracion_w = ConfiguracionWidget(self.db)
 
         for w in [self.dashboard_w, self.apartamentos_w, self.inquilinos_w,
                   self.contratos_w, self.pagos_w, self.mantenimiento_w,
-                  self.gastos_w, self.informes_w]:
+                  self.gastos_w, self.informes_w, self.configuracion_w]:
             self.stack.addWidget(w)
 
         c_layout.addWidget(self.stack)
@@ -143,14 +153,8 @@ class MainWindow(QMainWindow):
 
     _page_titles = [
         "Dashboard", "Apartamentos", "Inquilinos", "Contratos",
-        "Pagos", "Mantenimiento", "Gastos", "Informes",
+        "Pagos", "Mantenimiento", "Gastos", "Informes", "Configuración",
     ]
-
-    def closeEvent(self, event):
-        ok, msg = make_backup(self.db.db_path)
-        if ok:
-            self.status_bar.showMessage(msg)
-        event.accept()
 
     def _nav_click(self, idx: int):
         for i, btn in enumerate(self.nav_buttons):
